@@ -103,7 +103,8 @@
         hex = "#" + hex;
       }
 
-      if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
+      //three symbol autocompletion disabled by default
+      if (/^#[0-9a-fA-F]{3}$/.test(hex) && false) {
         hex = "#" + [...hex.slice(1)]
           .map((character) => character + character)
           .join("");
