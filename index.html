@@ -31,7 +31,7 @@
       </div>
 
       <div class="input-row rgb-output-row">
-        <input id="rgbOutput" type="text" value="52, 152, 219" readonly />
+        <input id="rgbOutput" type="text" value="52, 152, 219"   />
         <button class="copy-button" data-copy="rgbOutput">Copy RGB</button>
       </div>
     </section>
@@ -126,12 +126,119 @@
       preview.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
       status.textContent = "";
     }
+    
+  function getRgbValuesFromText() {
+  const input = rgbOutput.value.trim();
+  let parts = [];
+
+  if (input.includes(",")) {
+    // Supports commas, spaces, or a combination:
+    // 10, 50 30
+    parts = input.split(",").flatMap((part) => {
+      const trimmedPart = part.trim();
+
+      // Preserve an empty comma-separated value as zero
+      if (trimmedPart === "") {
+        return [0];
+      }
+
+      return trimmedPart.split(/\s+/);
+    });
+  } else {
+    // Supports space-separated values:
+    // 200 30 60
+    parts = input === "" ? [] : input.split(/\s+/);
+  }
+
+  const values = parts.slice(0, 3).map((value) => {
+    if (value === "") {
+      return 0;
+    }
+
+    const number = Number(value);
+
+    return Number.isFinite(number)
+      ? clamp(Math.round(number))
+      : null;
+  });
+
+  // Missing RGB values become zero
+  while (values.length < 3) {
+    values.push(0);
+  }
+
+  return values.slice(0, 3);
+}
+function updateFromRgbText() {
+  const values = getRgbValuesFromText();
+
+  if (values.some((value) => value === null)) {
+    status.textContent = "Enter RGB values like 52, 152, 219.";
+    return;
+  }
+
+  const [red, green, blue] = values;
+
+  redInput.value = red;
+  greenInput.value = green;
+  blueInput.value = blue;
+
+  const hex =
+    "#" +
+    componentToHex(red) +
+    componentToHex(green) +
+    componentToHex(blue);
+
+  // Do not rewrite rgbOutput.value here.
+  // This keeps the cursor in its current position.
+  hexInput.value = hex;
+  preview.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+  status.textContent = "";
+}
+
+function completeRgbInput() {
+  const values = getRgbValuesFromText();
+
+  if (values.some((value) => value === null)) {
+    status.textContent = "Enter RGB values like 52, 152, 219.";
+    return;
+  }
+
+  const [red, green, blue] = values;
+
+  rgbOutput.value = `${red}, ${green}, ${blue}`;
+  redInput.value = red;
+  greenInput.value = green;
+  blueInput.value = blue;
+
+  const hex =
+    "#" +
+    componentToHex(red) +
+    componentToHex(green) +
+    componentToHex(blue);
+
+  hexInput.value = hex;
+  preview.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+  status.textContent = "";
+}
 
     [redInput, greenInput, blueInput].forEach((input) => {
       input.addEventListener("input", updateFromRgb);
     });
 
-    hexInput.addEventListener("input", updateFromHex);
+    
+  rgbOutput.addEventListener("input", updateFromRgbText);
+  rgbOutput.addEventListener("blur", completeRgbInput);
+
+  rgbOutput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      completeRgbInput();
+      rgbOutput.blur();
+    }
+  });
+
+  hexInput.addEventListener("input", updateFromHex);
 
     document.querySelectorAll(".copy-button").forEach((button) => {
       button.addEventListener("click", async () => {
