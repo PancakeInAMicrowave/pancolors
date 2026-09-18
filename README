@@ -1,1 +1,5 @@
-hex <-> rgb converter
+hex <-> rgb converter and proportions
+
+todo:
+autocomplete input (ie 200 -> 200, 0, 0)
+add default setting for total percentile in proportions (ie change not inbetween same color value)
