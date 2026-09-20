@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Proportions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="converter proportions-page">
+    <a class="back-link" href="index.html">← RGB Converter</a>
+
+    <h1>Color Proportions</h1>
+
+    <div class="proportions-layout">
+      <section class="proportion-card">
+        <h2>Known relationship</h2>
+
+        <div class="color-field">
+          <label for="sourceInitialColor">Initial color</label>
+
+          <div class="color-control">
+            <input id="sourceInitialColor" type="color" value="#FF0000" />
+
+            <div class="color-values">
+              <label>
+                HEX
+                <input id="sourceInitialHex" type="text" value="#FF0000" maxlength="7" />
+              </label>
+
+              <label>
+                RGB
+                <input id="sourceInitialRgb" type="text" value="255, 0, 0" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="happens">↓ Something happens ↓</div>
+
+        <div class="color-field">
+          <label for="sourceResultColor">Result color</label>
+
+          <div class="color-control">
+            <input id="sourceResultColor" type="color" value="#800000" />
+
+            <div class="color-values">
+              <label>
+                HEX
+                <input id="sourceResultHex" type="text" value="#800000" maxlength="7" />
+              </label>
+
+              <label>
+                RGB
+                <input id="sourceResultRgb" type="text" value="128, 0, 0" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="proportion-card">
+        <h2>Color to convert</h2>
+
+        <div class="color-field">
+          <label for="targetInitialColor">Initial color</label>
+
+          <div class="color-control">
+            <input id="targetInitialColor" type="color" value="#0000FF" />
+
+            <div class="color-values">
+              <label>
+                HEX
+                <input id="targetInitialHex" type="text" value="#0000FF" maxlength="7" />
+              </label>
+
+              <label>
+                RGB
+                <input id="targetInitialRgb" type="text" value="0, 0, 255" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="happens">↓ Apply relationship ↓</div>
+
+        <div class="color-field">
+          <label for="targetResultColor">Converted result</label>
+
+          <div class="color-control">
+            <input id="targetResultColor" type="color" value="#000080" readonly />
+
+            <div class="color-values">
+              <label>
+                HEX
+                <input id="targetResultHex" type="text" value="#000080" readonly />
+              </label>
+
+              <label>
+                RGB
+                <input id="targetResultRgb" type="text" value="0, 0, 128" readonly />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="mode-section">
+      <label for="mode">Conversion mode</label>
+
+	<select id="mode">
+	  <option value="percentile">
+		RGB - Per-channel percentile
+	  </option>
+
+	  <option value="absolute">
+		RGB - Per-channel absolute
+	  </option>
+
+	  <option value="oklch-absolute" selected>
+		OKLCH - Absolute difference
+	  </option>
+
+	  <option value="oklch-relative">
+		OKLCH - Relative difference
+	  </option>
+
+	  <option value="oklch-hue">
+		OKLCH - Hue shift only
+	  </option>
+
+	  <option value="oklch-lightness">
+		OKLCH - Lightness and chroma
+	  </option>
+	</select>
+
+	 <p id="modeDescription">
+	   Applies the absolute OKLCH lightness, chroma, and hue differences.
+	 </p>
+    </section>
+
+	<div class="copy-result-row">
+	  <input id="resultRgb" type="text" readonly />
+	  <button id="copyResult" type="button">Copy RGB</button>
+	</div>
+
+    <div id="copyMessage" class="copy-message"></div>
+  </main>
+
+  <script>
+    const colorGroups = [
+      {
+        color: "sourceInitialColor",
+        hex: "sourceInitialHex",
+        rgb: "sourceInitialRgb"
+      },
+      {
+        color: "sourceResultColor",
+        hex: "sourceResultHex",
+        rgb: "sourceResultRgb"
+      },
+      {
+        color: "targetInitialColor",
+        hex: "targetInitialHex",
+        rgb: "targetInitialRgb"
+      }
+    ];
+
+    const mode = document.getElementById("mode");
+    const modeDescription = document.getElementById("modeDescription");
+    const targetResultColor = document.getElementById("targetResultColor");
+    const targetResultHex = document.getElementById("targetResultHex");
+    const targetResultRgb = document.getElementById("targetResultRgb");
+    const resultRgb = document.getElementById("resultRgb");
+    const copyMessage = document.getElementById("copyMessage");
+
+    function clamp(value) {
+      return Math.min(255, Math.max(0, Math.round(value)));
+    }
+
+    function normalizeHex(value) {
+      value = value.trim();
+
+      if (!value.startsWith("#")) {
+        value = "#" + value;
+      }
+
+      if (/^#[0-9a-fA-F]{3}$/.test(value)) {
+        value = "#" + [...value.slice(1)]
+          .map(character => character + character)
+          .join("");
+      }
+
+      return value.toUpperCase();
+    }
+
+    function isValidHex(value) {
+      return /^#[0-9A-F]{6}$/.test(value);
+    }
+
+    function hexToRgb(hex) {
+      return {
+        r: parseInt(hex.slice(1, 3), 16),
+        g: parseInt(hex.slice(3, 5), 16),
+        b: parseInt(hex.slice(5, 7), 16)
+      };
+    }
+
+    function rgbTextToObject(value) {
+      const numbers = value
+        .split(",")
+        .map(number => clamp(Number(number.trim()) || 0));
+
+      if (numbers.length !== 3) {
+        return null;
+      }
+
+      return {
+        r: numbers[0],
+        g: numbers[1],
+        b: numbers[2]
+      };
+    }
+
+    function rgbToHex({ r, g, b }) {
+      return "#" + [r, g, b]
+        .map(value => clamp(value).toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
+    }
+
+    function rgbToText({ r, g, b }) {
+      return `${clamp(r)}, ${clamp(g)}, ${clamp(b)}`;
+    }
+
+    function updateGroupFromColor(group) {
+      const color = document.getElementById(group.color);
+      const hex = document.getElementById(group.hex);
+      const rgb = document.getElementById(group.rgb);
+
+      const rgbValue = hexToRgb(color.value);
+
+      hex.value = color.value.toUpperCase();
+      rgb.value = rgbToText(rgbValue);
+    }
+
+    function updateGroupFromHex(group) {
+      const color = document.getElementById(group.color);
+      const hex = document.getElementById(group.hex);
+      const rgb = document.getElementById(group.rgb);
+
+      const normalizedHex = normalizeHex(hex.value);
+
+      if (!isValidHex(normalizedHex)) {
+        return;
+      }
+
+      const rgbValue = hexToRgb(normalizedHex);
+
+      color.value = normalizedHex;
+      hex.value = normalizedHex;
+      rgb.value = rgbToText(rgbValue);
+    }
+
+    function updateGroupFromRgb(group) {
+      const color = document.getElementById(group.color);
+      const hex = document.getElementById(group.hex);
+      const rgb = document.getElementById(group.rgb);
+
+      const rgbValue = rgbTextToObject(rgb.value);
+
+      if (!rgbValue) {
+        return;
+      }
+
+      const newHex = rgbToHex(rgbValue);
+
+      color.value = newHex;
+      hex.value = newHex;
+      rgb.value = rgbToText(rgbValue);
+    }
+
+    function srgbToLinear(value) {
+  value /= 255;
+
+  return value <= 0.04045
+    ? value / 12.92
+    : Math.pow((value + 0.055) / 1.055, 2.4);
+}
+
+function linearToSrgb(value) {
+  value = Math.max(0, Math.min(1, value));
+
+  return value <= 0.0031308
+    ? value * 12.92
+    : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+}
+
+function rgbToOklab({ r, g, b }) {
+  const red = srgbToLinear(r);
+  const green = srgbToLinear(g);
+  const blue = srgbToLinear(b);
+
+  const l =
+    0.4122214708 * red +
+    0.5363325363 * green +
+    0.0514459929 * blue;
+
+  const m =
+    0.2119034982 * red +
+    0.6806995451 * green +
+    0.1073969566 * blue;
+
+  const s =
+    0.0883024619 * red +
+    0.2817188376 * green +
+    0.6299787005 * blue;
+
+  const lRoot = Math.cbrt(l);
+  const mRoot = Math.cbrt(m);
+  const sRoot = Math.cbrt(s);
+
+  return {
+    L: 0.2104542553 * lRoot +
+       0.793617785 * mRoot -
+       0.0040720468 * sRoot,
+
+    a: 1.9779984951 * lRoot -
+       2.428592205 * mRoot +
+       0.4505937099 * sRoot,
+
+    b: 0.0259040371 * lRoot +
+       0.7827717662 * mRoot -
+       0.808675766 * sRoot
+  };
+}
+
+function oklabToRgb({ L, a, b }) {
+  const l =
+    L +
+    0.3963377774 * a +
+    0.2158037573 * b;
+
+  const m =
+    L -
+    0.1055613458 * a -
+    0.0638541728 * b;
+
+  const s =
+    L -
+    0.0894841775 * a -
+    1.291485548 * b;
+
+  const lCubed = l ** 3;
+  const mCubed = m ** 3;
+  const sCubed = s ** 3;
+
+  const red =
+    4.0767416621 * lCubed -
+    3.3077115913 * mCubed +
+    0.2309699292 * sCubed;
+
+  const green =
+    -1.2684380046 * lCubed +
+    2.6097574011 * mCubed -
+    0.3413193965 * sCubed;
+
+  const blue =
+    -0.0041960863 * lCubed -
+    0.7034186147 * mCubed +
+    1.707614701 * sCubed;
+
+  return {
+    r: clamp(linearToSrgb(red) * 255),
+    g: clamp(linearToSrgb(green) * 255),
+    b: clamp(linearToSrgb(blue) * 255)
+  };
+}
+
+function oklabToOklch({ L, a, b }) {
+  const C = Math.sqrt(a * a + b * b);
+
+  let h = Math.atan2(b, a) * 180 / Math.PI;
+
+  if (h < 0) {
+    h += 360;
+  }
+
+  return { L, C, h };
+}
+
+function oklchToOklab({ L, C, h }) {
+  const radians = h * Math.PI / 180;
+
+  return {
+    L,
+    a: C * Math.cos(radians),
+    b: C * Math.sin(radians)
+  };
+}
+
+function rgbToOklch(rgb) {
+  return oklabToOklch(rgbToOklab(rgb));
+}
+
+function oklchToRgb(oklch) {
+  return oklabToRgb(oklchToOklab(oklch));
+}
+
+function normalizeHue(hue) {
+  return ((hue % 360) + 360) % 360;
+}
+
+function shortestHueDifference(resultHue, initialHue) {
+  return ((resultHue - initialHue + 540) % 360) - 180;
+}
+
+function clampOklch(value) {
+  return {
+    L: Math.max(0, Math.min(1, value.L)),
+    C: Math.max(0, value.C),
+    h: normalizeHue(value.h)
+  };
+}
+
+function calculateResult() {
+  const sourceInitial = hexToRgb(
+    document.getElementById("sourceInitialColor").value
+  );
+
+  const sourceResult = hexToRgb(
+    document.getElementById("sourceResultColor").value
+  );
+
+  const targetInitial = hexToRgb(
+    document.getElementById("targetInitialColor").value
+  );
+
+  let result;
+
+  if (mode.value === "percentile") {
+    result = {
+      r: sourceInitial.r === 0
+        ? 0
+        : targetInitial.r * (sourceResult.r / sourceInitial.r),
+
+      g: sourceInitial.g === 0
+        ? 0
+        : targetInitial.g * (sourceResult.g / sourceInitial.g),
+
+      b: sourceInitial.b === 0
+        ? 0
+        : targetInitial.b * (sourceResult.b / sourceInitial.b)
+    };
+
+    modeDescription.textContent =
+      "Applies the proportional change independently to each RGB channel.";
+  }
+
+  else if (mode.value === "absolute") {
+    result = {
+      r: targetInitial.r + (sourceResult.r - sourceInitial.r),
+      g: targetInitial.g + (sourceResult.g - sourceInitial.g),
+      b: targetInitial.b + (sourceResult.b - sourceInitial.b)
+    };
+
+    modeDescription.textContent =
+      "Applies the exact RGB difference independently to each channel.";
+  }
+
+  else {
+    const sourceOklch = rgbToOklch(sourceInitial);
+    const resultOklch = rgbToOklch(sourceResult);
+    const targetOklch = rgbToOklch(targetInitial);
+
+    const deltaL = resultOklch.L - sourceOklch.L;
+    const deltaC = resultOklch.C - sourceOklch.C;
+
+    const deltaH = shortestHueDifference(
+      resultOklch.h,
+      sourceOklch.h
+    );
+
+    let converted;
+
+    if (mode.value === "oklch-absolute") {
+      converted = {
+        L: targetOklch.L + deltaL,
+        C: targetOklch.C + deltaC,
+        h: targetOklch.h + deltaH
+      };
+
+      modeDescription.textContent =
+        "Applies the absolute OKLCH lightness, chroma, and hue differences.";
+    }
+
+    else if (mode.value === "oklch-relative") {
+      converted = {
+        L: targetOklch.L + deltaL * targetOklch.L,
+        C: targetOklch.C + deltaC * targetOklch.C,
+        h: targetOklch.h + deltaH
+      };
+
+      modeDescription.textContent =
+        "Applies the OKLCH change proportionally to the target color.";
+    }
+
+    else if (mode.value === "oklch-hue") {
+      converted = {
+        L: targetOklch.L,
+        C: targetOklch.C,
+        h: targetOklch.h + deltaH
+      };
+
+      modeDescription.textContent =
+        "Applies only the hue shift while preserving target lightness and chroma.";
+    }
+
+    else {
+      // oklch-lightness
+      converted = {
+        L: targetOklch.L + deltaL,
+        C: targetOklch.C + deltaC,
+        h: targetOklch.h
+      };
+
+      modeDescription.textContent =
+        "Applies the lightness and chroma changes while preserving target hue.";
+    }
+
+    converted = clampOklch(converted);
+    result = oklchToRgb(converted);
+  }
+
+  result = {
+    r: clamp(result.r),
+    g: clamp(result.g),
+    b: clamp(result.b)
+  };
+
+  const resultHex = rgbToHex(result);
+  const resultRgbText = rgbToText(result);
+
+  targetResultColor.value = resultHex;
+  targetResultHex.value = resultHex;
+  targetResultRgb.value = resultRgbText;
+  resultRgb.value = resultRgbText;
+}
+    colorGroups.forEach(group => {
+      const color = document.getElementById(group.color);
+      const hex = document.getElementById(group.hex);
+      const rgb = document.getElementById(group.rgb);
+
+      color.addEventListener("input", () => {
+        updateGroupFromColor(group);
+        calculateResult();
+      });
+
+      hex.addEventListener("input", () => {
+        updateGroupFromHex(group);
+        calculateResult();
+      });
+
+      rgb.addEventListener("input", () => {
+        updateGroupFromRgb(group);
+        calculateResult();
+      });
+    });
+
+    mode.addEventListener("change", calculateResult);
+
+    document.getElementById("copyResult").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(resultRgb.value);
+        copyMessage.textContent = "RGB result copied!";
+
+        setTimeout(() => {
+          copyMessage.textContent = "";
+        }, 1500);
+      } catch {
+        copyMessage.textContent = "Unable to copy.";
+      }
+    });
+
+    calculateResult();
+  </script>
+</body>
+</html>
